@@ -5,10 +5,10 @@ A segmented home network built in Cisco Packet Tracer. Designed as the blueprint
 ## What this project demonstrates
 
 - VLAN creation and access port assignment
-- 802.1Q trunking between switch and router
-- Router-on-a-stick (inter-VLAN routing with subinterfaces)
-- DHCP pools per VLAN with excluded address ranges
-- Extended ACLs to enforce segmentation between VLANs
+- 802.1Q trunking between switch and router (with restricted VLAN list)
+- Router-on-a-stick inter-VLAN routing using dot1Q subinterfaces
+- DHCP pools per VLAN with excluded address ranges for infrastructure
+- Extended ACLs applied inbound on VLAN subinterfaces to control traffic at the router's point of entry
 - Wireless segmentation using separate SSIDs mapped to different VLANs
 
 ## Topology
@@ -35,6 +35,12 @@ A segmented home network built in Cisco Packet Tracer. Designed as the blueprint
 | Guest | Internet | ✅ |
 
 The logic: a compromised IoT device (smart TV, future smart plug, etc.) should never be able to reach my personal PCs. A guest on the visitor WiFi should never be able to reach either my internal network or my smart home devices.
+
+ACLs are applied **inbound on each VLAN subinterface**, so traffic is inspected as it enters the router from the untrusted VLAN — blocked packets are dropped before they ever hit the routing table.
+
+## Trunk configuration
+
+The switch uplink to the router (Gig0/1) is configured as an 802.1Q trunk. Only VLANs 10, 20, and 30 are explicitly allowed on the trunk to reduce unnecessary traffic and reduce the attack surface — by default, a Cisco trunk allows all VLANs, which is not what you want.
 
 ## Wireless setup
 
@@ -147,7 +153,17 @@ interface GigabitEthernet0/0.30
  ip access-group BLOCK_GUEST_TO_INTERNAL in
 ```
 
-## Verification
+## Verification — connectivity tests
+
+Test matrix run after configuration:
+
+| Source | Destination | Expected | Result |
+|--------|-------------|----------|--------|
+| Trusted (Gram-PC) | IoT (Smart-TV) | Allowed | ✅ Success |
+| Trusted (Gram-PC) | Guest (Guest-Phone) | Allowed | ✅ Success |
+| IoT (Smart-TV) | Trusted (Gram-PC) | Blocked | ❌ Failed (as expected) |
+| Guest (Guest-Phone) | Trusted (Gram-PC) | Blocked | ❌ Failed (as expected) |
+| Guest (Guest-Phone) | IoT (Smart-TV) | Blocked | ❌ Failed (as expected) |
 
 **Trusted PC can reach IoT and Guest VLANs:**
 
@@ -162,7 +178,7 @@ The "Destination host unreachable" response confirms the ACL on the router's Gue
 ## Files
 
 - `home-network-vlan-lab.pkt` — the Packet Tracer project file. Open in Cisco Packet Tracer to inspect or modify.
-- `homelab/` — topology diagram and ping verification screenshots.
+- `homelab/` — topology diagram and verification screenshots.
 
 ## Built with
 
