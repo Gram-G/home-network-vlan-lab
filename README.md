@@ -45,6 +45,108 @@ Packet Tracer's basic AP can only broadcast one SSID per VLAN, so two APs are us
 
 In a real-world build, this would collapse into a single capable AP broadcasting multiple SSIDs mapped to different VLANs.
 
+## Configuration
+
+### Switch — VLAN creation
+
+```cisco
+vlan 10
+ name Trusted
+vlan 20
+ name IoT
+vlan 30
+ name Guest
+```
+
+### Switch — access port assignments
+
+```cisco
+interface range FastEthernet0/1 - 3
+ switchport mode access
+ switchport access vlan 10
+
+interface FastEthernet0/5
+ switchport mode access
+ switchport access vlan 10
+
+interface FastEthernet0/15
+ switchport mode access
+ switchport access vlan 30
+
+interface FastEthernet0/20
+ switchport mode access
+ switchport access vlan 20
+```
+
+### Switch — trunk to router
+
+```cisco
+interface GigabitEthernet0/1
+ switchport mode trunk
+ switchport trunk allowed vlan 10,20,30
+```
+
+### Router — subinterfaces (router-on-a-stick)
+
+```cisco
+interface GigabitEthernet0/0
+ no shutdown
+
+interface GigabitEthernet0/0.10
+ encapsulation dot1Q 10
+ ip address 192.168.10.1 255.255.255.0
+
+interface GigabitEthernet0/0.20
+ encapsulation dot1Q 20
+ ip address 192.168.20.1 255.255.255.0
+
+interface GigabitEthernet0/0.30
+ encapsulation dot1Q 30
+ ip address 192.168.30.1 255.255.255.0
+```
+
+### Router — DHCP pools
+
+```cisco
+ip dhcp excluded-address 192.168.10.1 192.168.10.10
+ip dhcp excluded-address 192.168.20.1 192.168.20.10
+ip dhcp excluded-address 192.168.30.1 192.168.30.10
+
+ip dhcp pool TRUSTED
+ network 192.168.10.0 255.255.255.0
+ default-router 192.168.10.1
+ dns-server 8.8.8.8
+
+ip dhcp pool IOT
+ network 192.168.20.0 255.255.255.0
+ default-router 192.168.20.1
+ dns-server 8.8.8.8
+
+ip dhcp pool GUEST
+ network 192.168.30.0 255.255.255.0
+ default-router 192.168.30.1
+ dns-server 8.8.8.8
+```
+
+### Router — ACLs
+
+```cisco
+ip access-list extended BLOCK_IOT_TO_TRUSTED
+ deny ip 192.168.20.0 0.0.0.255 192.168.10.0 0.0.0.255
+ permit ip any any
+
+ip access-list extended BLOCK_GUEST_TO_INTERNAL
+ deny ip 192.168.30.0 0.0.0.255 192.168.10.0 0.0.0.255
+ deny ip 192.168.30.0 0.0.0.255 192.168.20.0 0.0.0.255
+ permit ip any any
+
+interface GigabitEthernet0/0.20
+ ip access-group BLOCK_IOT_TO_TRUSTED in
+
+interface GigabitEthernet0/0.30
+ ip access-group BLOCK_GUEST_TO_INTERNAL in
+```
+
 ## Verification
 
 **Trusted PC can reach IoT and Guest VLANs:**
@@ -55,4 +157,27 @@ In a real-world build, this would collapse into a single capable AP broadcasting
 
 ![Guest blocked from Trusted](homelab/blocked-ping.png)
 
-The "Destination host unreachable" response confirms the ACL on the router's Guest subinterfa
+The "Destination host unreachable" response confirms the ACL on the router's Guest subinterface is actively dropping traffic destined for the Trusted subnet.
+
+## Files
+
+- `home-network-vlan-lab.pkt` — the Packet Tracer project file. Open in Cisco Packet Tracer to inspect or modify.
+- `homelab/` — topology diagram and ping verification screenshots.
+
+## Built with
+
+- Cisco Packet Tracer 8.x
+- Cisco IOS 15.0 (switch), 15.1 (router)
+
+## Notes for the real build
+
+When I build this physically, the changes will be:
+
+- One managed switch instead of the simulated 2960 (likely a small 8- or 16-port model)
+- Home router/firewall replaced with pfSense or OPNsense on dedicated hardware (Cisco CLI translates conceptually but not syntactically)
+- Single capable AP broadcasting both SSIDs instead of two separate APs
+- Additional IoT devices added to VLAN 20 as smart home gear comes online
+
+---
+
+Built as part of learning networking fundamentals alongside CompTIA A+ and Security+ studies.
