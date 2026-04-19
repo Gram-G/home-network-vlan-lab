@@ -1,15 +1,17 @@
 # Home Network VLAN Lab
 
-A segmented home network built in Cisco Packet Tracer. Designed as the blueprint for my planned real-world home setup — separating trusted devices, IoT, and guest access with VLANs and ACLs.
+A segmented home network I built in Cisco Packet Tracer as a learning project. It's also the design I'm planning to actually build in my house once I have the gear — keeping my personal PCs separate from smart devices and guest traffic.
 
-## What this project demonstrates
+This was my first time touching Cisco IOS, VLANs, or ACLs. I'm an A+ Core 1–certified cybersecurity student studying for Core 2 and then Security+, so everything here I learned while building it.
 
-- VLAN creation and access port assignment
-- 802.1Q trunking between switch and router (with restricted VLAN list)
-- Router-on-a-stick inter-VLAN routing using dot1Q subinterfaces
-- DHCP pools per VLAN with excluded address ranges for infrastructure
-- Extended ACLs applied inbound on VLAN subinterfaces to control traffic at the router's point of entry
-- Wireless segmentation using separate SSIDs mapped to different VLANs
+## What I built
+
+- Three VLANs: Trusted (my stuff), IoT (smart TV + future smart home gear), and Guest (visitors)
+- Router-on-a-stick using dot1Q subinterfaces on a single router port to handle traffic between VLANs
+- 802.1Q trunk between switch and router, locked down so only my three VLANs can cross it
+- DHCP pools on the router so each VLAN hands out IPs from its own subnet
+- Extended ACLs to stop IoT and Guest devices from reaching my personal network
+- Two wireless APs with different SSIDs — one for home, one for guests
 
 ## Topology
 
@@ -19,9 +21,9 @@ A segmented home network built in Cisco Packet Tracer. Designed as the blueprint
 
 | VLAN | Name | Subnet | Gateway | Purpose |
 |------|------|--------|---------|---------|
-| 10 | Trusted | 192.168.10.0/24 | 192.168.10.1 | Personal PCs, laptop, phones |
-| 20 | IoT | 192.168.20.0/24 | 192.168.20.1 | Smart TV (and future smart devices) |
-| 30 | Guest | 192.168.30.0/24 | 192.168.30.1 | Visitor devices |
+| 10 | Trusted | 192.168.10.0/24 | 192.168.10.1 | My PCs, laptop, and phones |
+| 20 | IoT | 192.168.20.0/24 | 192.168.20.1 | Smart TV, future smart home stuff |
+| 30 | Guest | 192.168.30.0/24 | 192.168.30.1 | Visitors' phones |
 
 ## Security rules (ACLs)
 
@@ -34,26 +36,23 @@ A segmented home network built in Cisco Packet Tracer. Designed as the blueprint
 | Guest | IoT | ❌ |
 | Guest | Internet | ✅ |
 
-The logic: a compromised IoT device (smart TV, future smart plug, etc.) should never be able to reach my personal PCs. A guest on the visitor WiFi should never be able to reach either my internal network or my smart home devices.
+My reasoning: if something on the smart TV or a future smart plug ever gets compromised, it shouldn't be able to reach my actual computers. And guests on the visitor WiFi definitely shouldn't be able to see my personal network or my smart devices.
 
-ACLs are applied **inbound on each VLAN subinterface**, so traffic is inspected as it enters the router from the untrusted VLAN — blocked packets are dropped before they ever hit the routing table.
+I applied the ACLs inbound on the Guest and IoT subinterfaces. I read that you can filter inbound or outbound, and inbound made more sense to me — drop the bad traffic right as it hits the router instead of letting it get routed first and then deciding.
 
-## Trunk configuration
+## About the trunk
 
-The switch uplink to the router (Gig0/1) is configured as an 802.1Q trunk. Only VLANs 10, 20, and 30 are explicitly allowed on the trunk to reduce unnecessary traffic and reduce the attack surface — by default, a Cisco trunk allows all VLANs, which is not what you want.
+The cable between the switch and the router carries all three VLANs, so it's a trunk. By default Cisco trunks allow every VLAN to cross, which I learned isn't great — if you ever added more VLANs later, they'd ride the trunk too whether you wanted them to or not. I restricted mine to only VLANs 10, 20, and 30.
 
-## Wireless setup
+## About the wireless
 
-Packet Tracer's basic AP can only broadcast one SSID per VLAN, so two APs are used in the sim:
-
-- `AP-Home` → SSID `HomeWiFi` → VLAN 10 (Trusted)
-- `AP-Guest` → SSID `GuestWiFi` → VLAN 30 (Guest)
-
-In a real-world build, this would collapse into a single capable AP broadcasting multiple SSIDs mapped to different VLANs.
+Packet Tracer's basic AP can only broadcast one SSID and sit in one VLAN, so I used two APs in the sim — `AP-Home` for Trusted and `AP-Guest` for Guest. On real gear I'd just use one AP that can broadcast multiple SSIDs mapped to different VLANs. A lot of home routers can do this now.
 
 ## Configuration
 
-### Switch — VLAN creation
+These are the actual commands I ran. I left them here so anyone looking at the repo can see exactly what the network is built from without having to open the .pkt file.
+
+### Switch — create the VLANs
 
 ```cisco
 vlan 10
@@ -64,7 +63,7 @@ vlan 30
  name Guest
 ```
 
-### Switch — access port assignments
+### Switch — put ports in VLANs
 
 ```cisco
 interface range FastEthernet0/1 - 3
@@ -84,7 +83,7 @@ interface FastEthernet0/20
  switchport access vlan 20
 ```
 
-### Switch — trunk to router
+### Switch — trunk to the router
 
 ```cisco
 interface GigabitEthernet0/1
@@ -111,7 +110,7 @@ interface GigabitEthernet0/0.30
  ip address 192.168.30.1 255.255.255.0
 ```
 
-### Router — DHCP pools
+### Router — DHCP for each VLAN
 
 ```cisco
 ip dhcp excluded-address 192.168.10.1 192.168.10.10
@@ -134,6 +133,8 @@ ip dhcp pool GUEST
  dns-server 8.8.8.8
 ```
 
+I reserved the first 10 IPs in each subnet so they're not handed out by DHCP — figured I'd want room for static stuff later (router, printer, maybe a server someday).
+
 ### Router — ACLs
 
 ```cisco
@@ -153,81 +154,83 @@ interface GigabitEthernet0/0.30
  ip access-group BLOCK_GUEST_TO_INTERNAL in
 ```
 
-## Verification — connectivity tests
+The `permit ip any any` at the end of each ACL is important — without it, the implicit deny at the end of every Cisco ACL would drop everything else too, including normal internet traffic. Learned that one the hard way.
 
-Test matrix run after configuration:
+## Testing — does it actually work
 
-| Source | Destination | Expected | Result |
-|--------|-------------|----------|--------|
-| Trusted (Gram-PC) | IoT (Smart-TV) | Allowed | ✅ Success |
-| Trusted (Gram-PC) | Guest (Guest-Phone) | Allowed | ✅ Success |
-| IoT (Smart-TV) | Trusted (Gram-PC) | Blocked | ❌ Failed (as expected) |
-| Guest (Guest-Phone) | Trusted (Gram-PC) | Blocked | ❌ Failed (as expected) |
-| Guest (Guest-Phone) | IoT (Smart-TV) | Blocked | ❌ Failed (as expected) |
+I ran pings between every combination of VLANs to make sure the ACLs were doing their job.
 
-**Trusted PC can reach IoT and Guest VLANs:**
+| Source | Destination | Should it work? | Did it work? |
+|--------|-------------|-----------------|--------------|
+| Trusted (Gram-PC) | IoT (Smart-TV) | Yes | ✅ Yes |
+| Trusted (Gram-PC) | Guest (Guest-Phone) | Yes | ✅ Yes |
+| IoT (Smart-TV) | Trusted (Gram-PC) | No | ❌ Blocked |
+| Guest (Guest-Phone) | Trusted (Gram-PC) | No | ❌ Blocked |
+| Guest (Guest-Phone) | IoT (Smart-TV) | No | ❌ Blocked |
+
+**Trusted PC can reach IoT and Guest:**
 
 ![Allowed pings from Trusted VLAN](homelab/allowed-pings.png)
 
-**Guest phone blocked from reaching Trusted VLAN:**
+**Guest phone blocked from reaching Trusted:**
 
 ![Guest blocked from Trusted](homelab/blocked-ping.png)
 
-The "Destination host unreachable" response confirms the ACL on the router's Guest subinterface is actively dropping traffic destined for the Trusted subnet.
+The "Destination host unreachable" is the router telling the Guest phone "nope, that's blocked" — which is exactly what I wanted.
 
-## Verification — CLI state
+## Checking the config with show commands
 
-Screenshots of `show` commands confirming the network is in the expected operational state.
+Pings prove the network *behaves* correctly. These `show` commands prove the config is actually in place underneath.
 
-### Switch — VLANs and port assignments
+### `show vlan brief` on the switch
 
-`show vlan brief` confirms all three VLANs exist and that access ports are correctly assigned:
+Confirms the three VLANs exist and which ports are in each one:
 
 ![show vlan brief](homelab/show-vlan-brief.png)
 
-### Switch — trunk status
+### `show interfaces trunk` on the switch
 
-`show interfaces trunk` confirms Gig0/1 is operational as a trunk and is tagging only the allowed VLANs:
+Confirms the router uplink is actually running as a trunk and is only carrying the three VLANs I allowed:
 
 ![show interfaces trunk](homelab/show-interfaces-trunk.png)
 
-### Router — routing table
+### `show ip route` on the router
 
-`show ip route` confirms the router has directly-connected routes for all three VLAN subnets via their respective subinterfaces:
+Confirms the router knows how to reach all three subnets via the subinterfaces:
 
 ![show ip route](homelab/show-ip-route.png)
 
-### Router — DHCP bindings
+### `show ip dhcp binding` on the router
 
-`show ip dhcp binding` confirms clients in each VLAN received IP addresses from the correct pool:
+Confirms DHCP actually handed out IPs to the right VLANs — you can see addresses in each of the three subnets:
 
 ![show ip dhcp binding](homelab/show-dhcp-binding.png)
 
-### Router — active ACLs
+### `show access-lists` on the router
 
-`show access-lists` confirms both ACLs are present and shows hit counts, proving the rules are actively matching traffic rather than just being configured:
+Confirms both ACLs are loaded and shows the hit counter, so I know the rules are actually matching traffic instead of just sitting there:
 
 ![show access-lists](homelab/show-access-lists.png)
 
 ## Files
 
-- `home-network-vlan-lab.pkt` — the Packet Tracer project file. Open in Cisco Packet Tracer to inspect or modify.
-- `homelab/` — topology diagram and verification screenshots.
+- `home-network-vlan-lab.pkt` — the Packet Tracer file. Open it in Packet Tracer if you want to click around the config yourself.
+- `homelab/` — topology and verification screenshots.
 
 ## Built with
 
 - Cisco Packet Tracer 8.x
 - Cisco IOS 15.0 (switch), 15.1 (router)
 
-## Notes for the real build
+## When I build this for real
 
-When I build this physically, the changes will be:
+A few things will change going from the sim to actual hardware:
 
-- One managed switch instead of the simulated 2960 (likely a small 8- or 16-port model)
-- Home router/firewall replaced with pfSense or OPNsense on dedicated hardware (Cisco CLI translates conceptually but not syntactically)
-- Single capable AP broadcasting both SSIDs instead of two separate APs
-- Additional IoT devices added to VLAN 20 as smart home gear comes online
+- I'll probably use a real managed switch (something small, 8 or 16 ports)
+- Instead of a Cisco router, I'll likely run pfSense or OPNsense on a mini PC. The concepts are the same but the commands aren't — I'll be clicking through a web GUI instead of typing IOS commands.
+- One AP broadcasting both SSIDs instead of two separate APs
+- More devices getting added to the IoT VLAN as I pick up smart home gear
 
 ---
 
-Built as part of learning networking fundamentals alongside CompTIA A+ and Security+ studies.
+Built while working on CompTIA A+ and studying for Security+. First real networking project I've done from scratch.
