@@ -13,7 +13,7 @@ A segmented home network built in Cisco Packet Tracer. Designed as the blueprint
 
 ## Topology
 
-![Network topology](screenshots/topology.png)
+![Network topology](homelab/topology.png)
 
 ## Network design
 
@@ -49,10 +49,10 @@ In a real-world build, this would collapse into a single capable AP broadcasting
 
 **Trusted PC can reach IoT and Guest VLANs:**
 
-![Allowed pings from Trusted VLAN](screenshots/allowed-pings.png)
+![Allowed pings from Trusted VLAN](homelab/allowed-pings.png)
 
 **Guest phone blocked from reaching Trusted VLAN:**
 
-![Guest blocked from Trusted](screenshots/blocked-ping.png)
+![Guest blocked from Trusted](homelab/blocked-ping.png)
 
 The "Destination host unreachable" response confirms the ACL on the router's Guest subinterfa
