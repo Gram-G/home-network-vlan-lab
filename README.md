@@ -175,6 +175,40 @@ Test matrix run after configuration:
 
 The "Destination host unreachable" response confirms the ACL on the router's Guest subinterface is actively dropping traffic destined for the Trusted subnet.
 
+## Verification — CLI state
+
+Screenshots of `show` commands confirming the network is in the expected operational state.
+
+### Switch — VLANs and port assignments
+
+`show vlan brief` confirms all three VLANs exist and that access ports are correctly assigned:
+
+![show vlan brief](homelab/show-vlan-brief.png)
+
+### Switch — trunk status
+
+`show interfaces trunk` confirms Gig0/1 is operational as a trunk and is tagging only the allowed VLANs:
+
+![show interfaces trunk](homelab/show-interfaces-trunk.png)
+
+### Router — routing table
+
+`show ip route` confirms the router has directly-connected routes for all three VLAN subnets via their respective subinterfaces:
+
+![show ip route](homelab/show-ip-route.png)
+
+### Router — DHCP bindings
+
+`show ip dhcp binding` confirms clients in each VLAN received IP addresses from the correct pool:
+
+![show ip dhcp binding](homelab/show-dhcp-binding.png)
+
+### Router — active ACLs
+
+`show access-lists` confirms both ACLs are present and shows hit counts, proving the rules are actively matching traffic rather than just being configured:
+
+![show access-lists](homelab/show-access-lists.png)
+
 ## Files
 
 - `home-network-vlan-lab.pkt` — the Packet Tracer project file. Open in Cisco Packet Tracer to inspect or modify.
